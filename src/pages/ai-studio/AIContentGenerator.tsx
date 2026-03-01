@@ -1,11 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
     Sparkles, RefreshCw, Copy, Check, ChevronDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
 import { aiProducts, sampleStreamingContent } from "@/data/mockAIStudio";
 
 export default function AIContentGenerator() {

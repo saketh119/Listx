@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 import { ArrowLeft, Package, AlertTriangle, TrendingDown, Archive, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { inventoryMetrics } from "@/data/mockAnalytics";
 
 export default function InventoryReport() {

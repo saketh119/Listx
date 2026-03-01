@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Zap, Shield, Check, ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { platformIntegrations } from "@/data/mockIntegrations";
 
 type Step = 'intro' | 'authorize' | 'permissions' | 'syncing' | 'success';
@@ -44,7 +43,7 @@ export default function PlatformConnectFlow() {
                 {['intro', 'authorize', 'permissions', 'syncing', 'success'].map((s, i) => (
                     <div key={s} className="flex items-center gap-2">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${['intro', 'authorize', 'permissions', 'syncing', 'success'].indexOf(step) >= i
-                                ? 'bg-brand-lake text-white' : 'bg-bg-subtle text-text-muted'
+                            ? 'bg-brand-lake text-white' : 'bg-bg-subtle text-text-muted'
                             }`}>
                             {['intro', 'authorize', 'permissions', 'syncing', 'success'].indexOf(step) > i ? <Check className="w-3 h-3" /> : i + 1}
                         </div>

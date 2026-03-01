@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
     ArrowLeft, Search, Truck, Package, AlertTriangle, Clock,
-    MapPin, ChevronRight, CheckCircle2, Eye
+    MapPin, CheckCircle2, Eye
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";

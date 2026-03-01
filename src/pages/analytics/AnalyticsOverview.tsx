@@ -4,7 +4,6 @@ import {
     ShoppingCart, BarChart2, Users, Package, RotateCcw, Search as SearchIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
     dailyRevenueData, platformBreakdown, analyticsKPIs, topProducts
 } from "@/data/mockAnalytics";

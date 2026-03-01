@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Zap, Star, Clock, IndianRupee, Truck, Check, X } from "lucide-react";
+import { Zap, Star, Clock, IndianRupee, Truck, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {

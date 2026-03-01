@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Save, Lock, AlertTriangle, Tag } from "lucide-react";
+import { ArrowLeft, Save, Lock, AlertTriangle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { mockOrders } from "@/data/mockOrders";
 
 export default function OrderEdit() {
