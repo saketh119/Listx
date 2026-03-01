@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, CartesianAxis } from "recharts";
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { mockRevenueData } from "@/data/mockData";
 
 export function RevenueChart() {
@@ -42,7 +42,7 @@ export function RevenueChart() {
                                 }}
                                 itemStyle={{ color: 'hsl(var(--foreground))' }}
                                 labelStyle={{ color: 'hsl(var(--text-muted))', marginBottom: '4px' }}
-                                formatter={(value: number) => [`₹${value.toLocaleString()}`, 'Revenue']}
+                                formatter={(value: number | undefined) => [`₹${(value ?? 0).toLocaleString()}`, 'Revenue']}
                             />
                             <Area
                                 type="monotone"

@@ -1,9 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, UploadCloud, FileSpreadsheet, CheckCircle2, AlertCircle, X, Loader2 } from "lucide-react";
+import { ArrowLeft, UploadCloud, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 
 export default function UploadCSV() {
     const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'validating' | 'success' | 'error'>('idle');

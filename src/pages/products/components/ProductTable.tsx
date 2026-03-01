@@ -4,7 +4,7 @@ import {
     MoreHorizontal, ArrowUpDown, Edit, Trash2, Tag,
     Copy, ExternalLink, Image as ImageIcon
 } from "lucide-react";
-import { format } from "date-fns";
+
 
 import type { ExtendedProduct } from "@/data/mockProducts";
 import { Badge } from "@/components/ui/badge";

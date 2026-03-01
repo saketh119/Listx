@@ -33,7 +33,6 @@ const platformOptions = [
 
 const paymentOptions = ['Prepaid', 'COD', 'Partial'];
 const fulfillmentOptions = ['Platform Fulfilled', 'Self Ship', 'Dropship'];
-const courierOptions = ['All', 'Delhivery', 'Blue Dart', 'Ekart', 'Shiprocket', 'DTDC', 'Xpressbees'];
 
 export function OrderFilterSheet({ open, onOpenChange }: Props) {
     const [statuses, setStatuses] = useState<string[]>([]);
