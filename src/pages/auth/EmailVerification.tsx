@@ -10,7 +10,7 @@ export default function EmailVerification() {
     const [error, setError] = useState(false);
     const [timeLeft, setTimeLeft] = useState(60);
     const inputsRef = useRef<(HTMLInputElement | null)[]>([]);
-    const { login } = useAuth(); // We'll log them in now
+    useAuth(); // We'll log them in now
     const navigate = useNavigate();
 
     useEffect(() => {
