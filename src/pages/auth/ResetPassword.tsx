@@ -20,17 +20,21 @@ export default function ResetPassword() {
         return { label: "Strong", width: "100%", color: "bg-semantic-success" };
     };
 
-    const handleReset = (e: React.FormEvent) => {
+    const handleReset = async (e: React.FormEvent) => {
         e.preventDefault();
         if (password !== confirm) return;
 
         setIsLoading(true);
-        setTimeout(() => {
-            setIsLoading(false);
-            // Simulating a toast message by just navigating.
+        try {
+            await apiClient.post('/auth/reset-password', { password });
             alert("Password updated successfully. Please log in.");
             navigate("/login");
-        }, 1500);
+        } catch (error: any) {
+            console.error("Failed to reset password:", error);
+            alert(error.response?.data?.error || "Reset failed. Please try again.");
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const strength = getPasswordStrength();

@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiClient } from "@/lib/api-client";
 
 const PLATFORMS = ["Amazon", "Flipkart", "Shopify", "ONDC", "Meesho", "Own Website", "Other"];
 
@@ -20,13 +21,22 @@ export default function SignupStep2() {
         }
     };
 
-    const handleComplete = (e: React.FormEvent) => {
+    const handleComplete = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setIsLoading(true);
-        setTimeout(() => {
+
+        const formData = new FormData(e.currentTarget);
+        const data = Object.fromEntries(formData.entries());
+
+        try {
+            await apiClient.patch('/auth/profile', data);
+            navigate("/onboarding/welcome");
+        } catch (error: any) {
+            console.error("Failed to update profile:", error);
+            alert("Failed to save business details. Please try again.");
+        } finally {
             setIsLoading(false);
-            navigate("/verify-email");
-        }, 1500);
+        }
     };
 
     return (
@@ -49,13 +59,13 @@ export default function SignupStep2() {
             <form onSubmit={handleComplete} className="space-y-6">
                 <div className="space-y-2">
                     <Label htmlFor="businessName">Business Name</Label>
-                    <Input id="businessName" placeholder="e.g. Krishna Enterprises" required />
+                    <Input id="businessName" name="business_name" placeholder="e.g. Krishna Enterprises" required />
                 </div>
 
                 <div className="space-y-2">
                     <Label htmlFor="businessType">Business Type</Label>
-                    <select id="businessType" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" required>
-                        <option value="" disabled selected>Select business type</option>
+                    <select id="businessType" name="business_type" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" required>
+                        <option value="" disabled>Select business type</option>
                         <option value="individual">Individual Seller</option>
                         <option value="small_business">Small Business</option>
                         <option value="brand">Brand / Company</option>
@@ -84,8 +94,8 @@ export default function SignupStep2() {
 
                 <div className="space-y-2">
                     <Label htmlFor="volume">Monthly Order Volume</Label>
-                    <select id="volume" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" required>
-                        <option value="" disabled selected>Select order volume</option>
+                    <select id="volume" name="volume" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" required>
+                        <option value="" disabled>Select order volume</option>
                         <option value="0-50">Just starting (0–50)</option>
                         <option value="51-500">51–500 orders</option>
                         <option value="501-2000">501–2000 orders</option>
@@ -101,7 +111,7 @@ export default function SignupStep2() {
                             <option>+1</option>
                             <option>+44</option>
                         </select>
-                        <Input id="phone" type="tel" placeholder="98765 43210" className="flex-1" required />
+                        <Input id="phone" name="phone_number" type="tel" placeholder="98765 43210" className="flex-1" required />
                     </div>
                 </div>
 
@@ -109,7 +119,7 @@ export default function SignupStep2() {
                     <Label htmlFor="gst" className="flex items-center gap-2">
                         GST Number <Badge variant="neutral" className="font-normal text-[10px] py-0">Optional</Badge>
                     </Label>
-                    <Input id="gst" placeholder="22AAAAA0000A1Z5" />
+                    <Input id="gst" name="gst_number" placeholder="22AAAAA0000A1Z5" />
                 </div>
 
                 <Button type="submit" className="w-full h-11" disabled={isLoading || selectedPlatforms.length === 0}>

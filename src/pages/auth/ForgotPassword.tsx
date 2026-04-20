@@ -10,13 +10,18 @@ export default function ForgotPassword() {
     const [isLoading, setIsLoading] = useState(false);
     const [email, setEmail] = useState("");
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
-        setTimeout(() => {
-            setIsLoading(false);
+        try {
+            await apiClient.post('/auth/forgot-password', { email });
             setIsSent(true);
-        }, 1500);
+        } catch (error: any) {
+            console.error("Failed to send reset link:", error);
+            // Optional: show error message
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     if (isSent) {

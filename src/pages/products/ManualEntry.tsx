@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { apiClient } from "@/lib/api-client";
 import { ArrowLeft, Keyboard, Plus, X, ImageIcon, Save } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -53,12 +54,30 @@ export default function ManualEntry() {
         );
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
+        if (!formData.title || !formData.sku || !formData.price || !formData.stock || !formData.category) {
+            alert("Please fill in all required fields marked with *");
+            return;
+        }
+
         setIsSaving(true);
-        setTimeout(() => {
-            setIsSaving(false);
+        try {
+            const { compareAtPrice, ...rest } = formData;
+            await apiClient.post('/products', {
+                ...rest,
+                compare_at_price: compareAtPrice ? parseFloat(compareAtPrice) : null,
+                price: parseFloat(formData.price),
+                stock: parseInt(formData.stock),
+                platforms: selectedPlatforms,
+                tags: tags
+            });
             navigate('/dashboard/products');
-        }, 1500);
+        } catch (error: any) {
+            console.error("Failed to save product:", error);
+            alert(error.response?.data?.error || "Failed to save product. Please try again.");
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const platforms = [

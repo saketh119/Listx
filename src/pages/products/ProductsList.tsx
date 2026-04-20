@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
     Plus, Search, Filter, LayoutGrid, List as ListIcon,
@@ -8,7 +8,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { extendedMockProducts } from "@/data/mockProducts";
+import { apiClient } from "@/lib/api-client";
+import { Spinner } from "@/components/ui/spinner";
 
 import { ProductTable } from "./components/ProductTable";
 import { ProductGrid } from "./components/ProductGrid";
@@ -17,18 +18,31 @@ export default function ProductsList() {
     const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState('all');
+    const [products, setProducts] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchProducts = async () => {
+            try {
+                const response = await apiClient.get('/products');
+                setProducts(response.data.products);
+            } catch (error) {
+                console.error("Failed to fetch products:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchProducts();
+    }, []);
 
     // Filter logic
-    const filteredProducts = extendedMockProducts.filter(product => {
+    const filteredProducts = products.filter(product => {
         const matchesSearch = product.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
             product.sku.toLowerCase().includes(searchQuery.toLowerCase());
 
         if (activeTab === 'all') return matchesSearch;
-        if (activeTab === 'active') return matchesSearch && product.status === 'active';
-        if (activeTab === 'draft') return matchesSearch && product.status === 'draft';
-        if (activeTab === 'out_of_stock') return matchesSearch && product.status === 'out_of_stock';
-
-        return matchesSearch;
+        return matchesSearch && product.status === activeTab;
     });
 
     return (
@@ -61,16 +75,16 @@ export default function ProductsList() {
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full xl:w-auto">
                         <TabsList className="bg-bg-subtle p-1 rounded-xl w-full sm:w-auto grid grid-cols-4 sm:flex h-auto">
                             <TabsTrigger value="all" className="rounded-lg py-2 px-4 text-sm font-medium data-[state=active]:shadow-sm">
-                                All <span className="ml-2 px-1.5 py-0.5 rounded-md bg-white/50 text-xs text-text-muted">{extendedMockProducts.length}</span>
+                                All <span className="ml-2 px-1.5 py-0.5 rounded-md bg-white/50 text-xs text-text-muted">{products.length}</span>
                             </TabsTrigger>
                             <TabsTrigger value="active" className="rounded-lg py-2 px-4 text-sm font-medium data-[state=active]:shadow-sm data-[state=active]:text-brand-jade">
-                                Active <span className="ml-2 px-1.5 py-0.5 rounded-md bg-white/50 text-xs text-brand-jade/80">{extendedMockProducts.filter(p => p.status === 'active').length}</span>
+                                Active <span className="ml-2 px-1.5 py-0.5 rounded-md bg-white/50 text-xs text-brand-jade/80">{products.filter((p: any) => p.status === 'active').length}</span>
                             </TabsTrigger>
                             <TabsTrigger value="draft" className="rounded-lg py-2 px-4 text-sm font-medium data-[state=active]:shadow-sm data-[state=active]:text-text-muted">
-                                Draft <span className="ml-2 px-1.5 py-0.5 rounded-md bg-white/50 text-xs text-text-muted/80">{extendedMockProducts.filter(p => p.status === 'draft').length}</span>
+                                Draft <span className="ml-2 px-1.5 py-0.5 rounded-md bg-white/50 text-xs text-text-muted/80">{products.filter((p: any) => p.status === 'draft').length}</span>
                             </TabsTrigger>
                             <TabsTrigger value="out_of_stock" className="rounded-lg py-2 px-4 text-sm font-medium data-[state=active]:shadow-sm data-[state=active]:text-semantic-error">
-                                Out of Stock <span className="ml-2 px-1.5 py-0.5 rounded-md bg-white/50 text-xs text-semantic-error/80">{extendedMockProducts.filter(p => p.status === 'out_of_stock').length}</span>
+                                Out of Stock <span className="ml-2 px-1.5 py-0.5 rounded-md bg-white/50 text-xs text-semantic-error/80">{products.filter((p: any) => p.status === 'out_of_stock').length}</span>
                             </TabsTrigger>
                         </TabsList>
                     </Tabs>
@@ -107,7 +121,11 @@ export default function ProductsList() {
             </div>
 
             {/* List/Grid Content */}
-            {filteredProducts.length > 0 ? (
+            {isLoading ? (
+                <div className="flex items-center justify-center py-20">
+                    <Spinner size="lg" />
+                </div>
+            ) : filteredProducts.length > 0 ? (
                 <>
                     {viewMode === 'list' ? (
                         <div className="bg-white rounded-2xl border border-border/60 shadow-sm overflow-hidden">

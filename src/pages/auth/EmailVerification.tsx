@@ -71,7 +71,6 @@ export default function EmailVerification() {
 
         setIsLoading(true);
         setTimeout(() => {
-            login(); // Mark as authenticated
             navigate("/onboarding/welcome");
         }, 1500);
     };

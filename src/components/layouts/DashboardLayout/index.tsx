@@ -7,10 +7,28 @@ import { AlertCircle, X } from "lucide-react";
 import { CommandPalette } from "@/components/CommandPalette";
 import { SpotlightCoachmarks } from "@/components/SpotlightCoachmarks";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+
 export function DashboardLayout() {
+    const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+    const navigate = useNavigate();
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [showSystemBanner, setShowSystemBanner] = useState(true);
+
+    useEffect(() => {
+        if (!isAuthLoading && !isAuthenticated) {
+            navigate("/login");
+        }
+    }, [isAuthenticated, isAuthLoading, navigate]);
+
+    if (isAuthLoading) {
+        return <div className="min-h-screen flex items-center justify-center bg-bg-subtle text-text-muted">Loading workspace...</div>;
+    }
+
+    if (!isAuthenticated) return null;
 
     return (
         <div className="min-h-screen bg-bg-subtle flex">

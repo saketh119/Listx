@@ -1,33 +1,31 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowUpRight, ArrowDownRight, IndianRupee, ShoppingCart, PackageOpen, Undo2 } from "lucide-react";
-import { mockKPIs } from "@/data/mockData";
-
-export function KPIGrid() {
+export function KPIGrid({ kpis: backendKPIs }: { kpis?: any }) {
     const kpis = [
         {
             title: "Total Revenue",
-            value: `₹${(mockKPIs.totalRevenue / 1000).toFixed(1)}K`,
-            change: `+${mockKPIs.revenueGrowth}%`,
+            value: `₹${((backendKPIs?.totalRevenue || 0) / 1000).toFixed(1)}K`,
+            change: `+${backendKPIs?.revenueGrowth || 0}%`,
             trend: "up",
             icon: IndianRupee,
         },
         {
             title: "Total Orders",
-            value: mockKPIs.totalOrders.toLocaleString(),
-            change: `+${mockKPIs.orderGrowth}%`,
+            value: (backendKPIs?.totalOrders || 0).toLocaleString(),
+            change: `+${backendKPIs?.orderGrowth || 0}%`,
             trend: "up",
             icon: ShoppingCart,
         },
         {
             title: "Active Products",
-            value: mockKPIs.activeProducts.toLocaleString(),
+            value: (backendKPIs?.activeProducts || 0).toLocaleString(),
             change: "Stable",
             trend: "neutral",
             icon: PackageOpen,
         },
         {
             title: "Return Rate",
-            value: `${mockKPIs.returnRate}%`,
+            value: `${backendKPIs?.returnRate || 0}%`,
             change: "-0.5%",
             trend: "down-good",
             icon: Undo2,

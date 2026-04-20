@@ -2,7 +2,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { mockRevenueData } from "@/data/mockData";
 
-export function RevenueChart() {
+export function RevenueChart({ data: backendData }: { data?: any[] }) {
+    const chartData = (backendData && backendData.length > 0) ? backendData : mockRevenueData;
+
     return (
         <Card className="h-full">
             <CardHeader>
@@ -12,7 +14,7 @@ export function RevenueChart() {
             <CardContent>
                 <div className="h-[300px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={mockRevenueData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                             <defs>
                                 <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="5%" stopColor="#42D49C" stopOpacity={0.3} />

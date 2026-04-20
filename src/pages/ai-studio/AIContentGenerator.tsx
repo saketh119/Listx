@@ -1,41 +1,102 @@
-import { useState, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import {
-    Sparkles, RefreshCw, Copy, Check, ChevronDown
-} from "lucide-react";
+import { Sparkles, RefreshCw, Copy, Check, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { aiProducts, sampleStreamingContent } from "@/data/mockAIStudio";
+import { apiClient } from "@/lib/api-client";
+import { Spinner } from "@/components/ui/spinner";
 
 export default function AIContentGenerator() {
-    const [selectedProduct, setSelectedProduct] = useState(aiProducts[2]); // ceramic set — has no AI desc
+    const [products, setProducts] = useState<any[]>([]);
+    const [selectedProduct, setSelectedProduct] = useState<any>(null);
     const [showPicker, setShowPicker] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [isInitialLoading, setIsInitialLoading] = useState(true);
     const [streamedText, setStreamedText] = useState('');
     const [isComplete, setIsComplete] = useState(false);
     const [copied, setCopied] = useState(false);
     const [tone, setTone] = useState('professional');
-    const streamRef = useRef<number>(0);
 
     const tones = ['professional', 'casual', 'luxury', 'technical', 'friendly'];
 
-    const startStreaming = () => {
+    useEffect(() => {
+        const fetchProducts = async () => {
+            try {
+                const response = await apiClient.get('/products');
+                const prods = response.data.products;
+                setProducts(prods);
+                if (prods.length > 0) {
+                    setSelectedProduct(prods[0]);
+                }
+            } catch (error) {
+                console.error("Failed to fetch products:", error);
+            } finally {
+                setIsInitialLoading(false);
+            }
+        };
+        fetchProducts();
+    }, []);
+
+    const startStreaming = async () => {
+        if (!selectedProduct) return;
+        
         setIsGenerating(true);
         setStreamedText('');
         setIsComplete(false);
-        streamRef.current = 0;
 
-        const interval = setInterval(() => {
-            streamRef.current += 3;
-            if (streamRef.current >= sampleStreamingContent.length) {
-                setStreamedText(sampleStreamingContent);
-                setIsGenerating(false);
-                setIsComplete(true);
-                clearInterval(interval);
-            } else {
-                setStreamedText(sampleStreamingContent.slice(0, streamRef.current));
+        try {
+            const token = localStorage.getItem('auth_token');
+            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/ai/generate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    productId: selectedProduct.id,
+                    tone: tone
+                })
+            });
+
+            if (!response.ok) throw new Error('Generation failed');
+
+            const reader = response.body?.getReader();
+            const decoder = new TextDecoder();
+
+            if (!reader) throw new Error('No reader available');
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                const chunk = decoder.decode(value, { stream: true });
+                setStreamedText(prev => prev + chunk);
             }
-        }, 20);
+            
+            setIsComplete(true);
+        } catch (error) {
+            console.error("Streaming error:", error);
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const handleApprove = async () => {
+        if (!selectedProduct || !streamedText) return;
+        setIsSaving(true);
+        try {
+            await apiClient.patch(`/products/${selectedProduct.id}`, {
+                description: streamedText,
+                // Also update local state
+            });
+            setSelectedProduct({ ...selectedProduct, description: streamedText });
+            setProducts(products.map(p => p.id === selectedProduct.id ? { ...p, description: streamedText } : p));
+        } catch (error) {
+            console.error("Failed to save AI content:", error);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const copyContent = () => {
@@ -43,6 +104,23 @@ export default function AIContentGenerator() {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
+
+    if (isInitialLoading) {
+        return (
+            <div className="h-[400px] flex items-center justify-center">
+                <Spinner size="lg" />
+            </div>
+        );
+    }
+
+    if (products.length === 0) {
+        return (
+            <div className="max-w-5xl mx-auto py-12 text-center">
+                <h2 className="text-display-sm text-brand-dark mb-2">No products found</h2>
+                <p className="text-text-muted">You need to add products before you can generate AI content.</p>
+            </div>
+        );
+    }
 
     return (
         <div className="max-w-5xl mx-auto pb-12">
@@ -67,19 +145,19 @@ export default function AIContentGenerator() {
                         <div className="relative">
                             <button onClick={() => setShowPicker(!showPicker)}
                                 className="w-full flex items-center gap-3 p-3 rounded-xl border border-border/40 hover:border-border transition-colors text-left">
-                                <img src={selectedProduct.image} alt="" className="w-10 h-10 rounded-lg object-cover" />
+                                <img src={selectedProduct.image_url || 'https://via.placeholder.com/40'} alt="" className="w-10 h-10 rounded-lg object-cover" />
                                 <div className="flex-1 min-w-0">
                                     <p className="text-xs font-medium text-brand-dark truncate">{selectedProduct.title}</p>
-                                    <p className="text-[10px] text-text-muted">{selectedProduct.category} • {selectedProduct.platform}</p>
+                                    <p className="text-[10px] text-text-muted">{selectedProduct.category} • {selectedProduct.platforms?.[0] || 'Manual'}</p>
                                 </div>
                                 <ChevronDown className="w-4 h-4 text-text-muted shrink-0" />
                             </button>
                             {showPicker && (
                                 <div className="absolute z-20 top-full mt-1 left-0 right-0 bg-white border border-border/60 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                                    {aiProducts.map(p => (
+                                    {products.map(p => (
                                         <button key={p.id} onClick={() => { setSelectedProduct(p); setShowPicker(false); setStreamedText(''); setIsComplete(false); }}
                                             className={`w-full flex items-center gap-3 p-2.5 text-left hover:bg-bg-subtle transition-colors ${selectedProduct.id === p.id ? 'bg-brand-lake/5' : ''}`}>
-                                            <img src={p.image} alt="" className="w-8 h-8 rounded-lg object-cover" />
+                                            <img src={p.image_url || 'https://via.placeholder.com/40'} alt="" className="w-8 h-8 rounded-lg object-cover" />
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-xs font-medium text-brand-dark truncate">{p.title}</p>
                                                 <p className="text-[10px] text-text-muted">{p.category}</p>
@@ -94,7 +172,7 @@ export default function AIContentGenerator() {
                     {/* Original Description */}
                     <div className="bg-white rounded-2xl border border-border/60 shadow-sm p-5">
                         <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Original Description</h3>
-                        <p className="text-sm text-text-muted leading-relaxed bg-bg-subtle/50 p-3 rounded-xl">{selectedProduct.originalDescription}</p>
+                        <p className="text-sm text-text-muted leading-relaxed bg-bg-subtle/50 p-3 rounded-xl">{selectedProduct.description || 'No description available.'}</p>
                     </div>
 
                     {/* Tone */}
@@ -160,8 +238,8 @@ export default function AIContentGenerator() {
 
                     {isComplete && (
                         <div className="mt-6 pt-4 border-t border-border/40 flex gap-2">
-                            <Button className="flex-1 rounded-xl bg-brand-jade hover:bg-brand-jade/90 text-white font-medium">
-                                <Check className="w-4 h-4 mr-2" /> Approve & Save
+                            <Button onClick={handleApprove} disabled={isSaving} className="flex-1 rounded-xl bg-brand-jade hover:bg-brand-jade/90 text-white font-medium">
+                                {isSaving ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : <><Check className="w-4 h-4 mr-2" /> Approve & Save</>}
                             </Button>
                             <Button variant="outline" onClick={startStreaming} className="rounded-xl border-border/60 font-medium">
                                 <RefreshCw className="w-4 h-4 mr-2" /> Regenerate
