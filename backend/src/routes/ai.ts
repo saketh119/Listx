@@ -141,4 +141,112 @@ ai.post('/generate', authMiddleware, zValidator('json', generateSchema), async (
   });
 });
 
+ai.post('/extract-from-image', authMiddleware, async (c) => {
+  const geminiApiKey = process.env.GEMINI_API_KEY;
+  if (!geminiApiKey) return c.json({ error: 'Gemini API key not configured' }, 500);
+
+  try {
+    const body = await c.req.parseBody();
+    const file = body['file'];
+
+    if (!file || !(file instanceof File)) {
+      return c.json({ error: 'No image file uploaded' }, 400);
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const base64Image = Buffer.from(arrayBuffer).toString('base64');
+
+    const genAI = new GoogleGenerativeAI(geminiApiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+    const prompt = `
+      Identify all products listed in this image. The image might be a photo of a handwritten or printed list on paper with product names and prices.
+      For each product, extract:
+      1. Product Name (Title)
+      2. Price (if present, as a number, ignore currency symbols but keep the value)
+      
+      Also, intelligently suggest:
+      3. A suitable category (one of: Electronics, Furniture, Home & Kitchen, Fitness, Apparel, Accessories)
+      4. A brief SEO-optimized description (2 sentences)
+      5. A unique SKU (e.g., P-NAME-123)
+      
+      Return the results EXCLUSIVELY as a JSON array of objects. 
+      Example format:
+      [
+        {"title": "Product Name", "price": 499.00, "category": "Electronics", "description": "...", "sku": "SKU-PROD-123", "status": "approved"}
+      ]
+      DO NOT include any conversational text or markdown formatting except the JSON.
+    `;
+
+    const result = await model.generateContent([
+      prompt,
+      {
+        inlineData: {
+          data: base64Image,
+          mimeType: file.type
+        }
+      }
+    ]);
+
+    const response = await result.response;
+    const text = response.text();
+    
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) throw new Error("AI failed to return valid product data. Please ensure the image is clear.");
+    
+    const extractedProducts = JSON.parse(jsonMatch[0]);
+
+    return c.json({ products: extractedProducts });
+  } catch (err: any) {
+    console.error('AI Extraction Error:', err);
+    return c.json({ error: err.message || 'Failed to extract products' }, 500);
+  }
+});
+
+ai.post('/generate-from-text', authMiddleware, zValidator('json', z.object({ 
+  description: z.string().min(5),
+  tone: z.string().optional()
+})), async (c) => {
+  const { description, tone } = c.req.valid('json');
+  const geminiApiKey = process.env.GEMINI_API_KEY;
+  if (!geminiApiKey) return c.json({ error: 'Gemini API key not configured' }, 500);
+
+  try {
+    const genAI = new GoogleGenerativeAI(geminiApiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+    const prompt = `
+      Generate a complete e-commerce product listing based on this brief description: "${description}".
+      Tone: ${tone || 'professional'}
+      
+      Provide:
+      1. A catchy SEO-optimized title
+      2. A detailed 3-paragraph product description
+      3. A list of 5 key features
+      4. Suggested category, price, and SKU
+      
+      Return as a JSON object:
+      {
+        "title": "...",
+        "description": "...",
+        "features": ["...", "..."],
+        "category": "...",
+        "price": 0,
+        "sku": "...",
+        "keywords": ["...", "..."]
+      }
+    `;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("AI failed to generate valid product data.");
+    
+    return c.json({ product: JSON.parse(jsonMatch[0]) });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
 export default ai;

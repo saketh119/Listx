@@ -28,7 +28,7 @@ import orderRoutes from './routes/orders.js';
 import analyticsRoutes from './routes/analytics.js';
 import systemRoutes from './routes/system.js';
 import aiRoutes from './routes/ai.js';
-
+import integrationsRoutes from './routes/integrations.js';
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
 app.route('/auth', authRoutes);
@@ -37,7 +37,7 @@ app.route('/orders', orderRoutes);
 app.route('/analytics', analyticsRoutes);
 app.route('/system', systemRoutes);
 app.route('/ai', aiRoutes);
-
+app.route('/integrations', integrationsRoutes);
 const port = Number(process.env.PORT) || 5000;
 console.log(`Server is running on port ${port}`);
 
