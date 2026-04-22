@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
     Search, SlidersHorizontal, Download, RefreshCw,
@@ -13,9 +13,10 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
     DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import { mockOrders, orderStats } from "@/data/mockOrders";
 import type { Platform, OrderStatus } from "@/data/mockOrders";
 import { OrderFilterSheet } from "./components/OrderFilterSheet";
+import { apiClient } from "@/lib/api-client";
+import { Spinner } from "@/components/ui/spinner";
 
 const platformConfig: Record<Platform, { label: string; color: string; bg: string; initial: string }> = {
     amazon: { label: 'Amazon', color: 'text-amber-600', bg: 'bg-amber-500/10', initial: 'A' },
@@ -24,7 +25,8 @@ const platformConfig: Record<Platform, { label: string; color: string; bg: strin
     ondc: { label: 'ONDC', color: 'text-purple-600', bg: 'bg-purple-500/10', initial: 'O' },
 };
 
-const statusConfig: Record<OrderStatus, { label: string; color: string; bg: string }> = {
+const statusConfig: Record<string, { label: string; color: string; bg: string }> = {
+    pending: { label: 'Pending', color: 'text-indigo-600', bg: 'bg-indigo-500/10' },
     new: { label: 'New', color: 'text-indigo-600', bg: 'bg-indigo-500/10' },
     processing: { label: 'Processing', color: 'text-blue-600', bg: 'bg-blue-500/10' },
     packed: { label: 'Packed', color: 'text-cyan-600', bg: 'bg-cyan-500/10' },
@@ -43,18 +45,62 @@ export default function OrdersList() {
     const [currentPage, setCurrentPage] = useState(1);
     const perPage = 10;
 
+    const [orders, setOrders] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchOrders = async () => {
+            try {
+                const res = await apiClient.get('/orders');
+                const mapped = res.data.orders.map((o: any) => ({
+                    id: o.id,
+                    platform: o.platform,
+                    customerName: o.customer_name || 'Unknown',
+                    createdAt: o.created_at,
+                    status: o.status,
+                    total: o.total,
+                    paymentType: o.payment_type || 'prepaid',
+                    items: o.order_items || [],
+                    courier: o.courier_info,
+                    tags: o.tags || []
+                }));
+                setOrders(mapped);
+            } catch (err) {
+                console.error("Failed to fetch orders", err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchOrders();
+    }, []);
+
+    const orderStats = useMemo(() => {
+        const stats = {
+            total: orders.length,
+            byPlatform: { amazon: 0, flipkart: 0, shopify: 0, ondc: 0 } as Record<string, number>
+        };
+        orders.forEach(o => {
+            if (stats.byPlatform[o.platform] !== undefined) {
+                stats.byPlatform[o.platform]++;
+            } else {
+                stats.byPlatform[o.platform] = 1;
+            }
+        });
+        return stats;
+    }, [orders]);
+
     const filtered = useMemo(() => {
-        return mockOrders.filter(o => {
+        return orders.filter(o => {
             if (search) {
                 const q = search.toLowerCase();
                 if (!o.id.toLowerCase().includes(q) && !o.customerName.toLowerCase().includes(q) &&
-                    !o.items.some(i => i.sku.toLowerCase().includes(q))) return false;
+                    !o.items.some((i: any) => i.sku && i.sku.toLowerCase().includes(q))) return false;
             }
             if (platformTab !== 'all' && o.platform !== platformTab) return false;
             if (statusTab !== 'all' && o.status !== statusTab) return false;
             return true;
         });
-    }, [search, platformTab, statusTab]);
+    }, [orders, search, platformTab, statusTab]);
 
     const totalPages = Math.ceil(filtered.length / perPage);
     const paged = filtered.slice((currentPage - 1) * perPage, currentPage * perPage);
@@ -139,9 +185,9 @@ export default function OrdersList() {
 
             {/* Status Sub-tabs */}
             <div className="flex items-center gap-2 mb-5 overflow-x-auto pb-1">
-                {['all', 'new', 'processing', 'packed', 'shipped', 'delivered', 'returned', 'cancelled'].map(s => {
-                    const cfg = s === 'all' ? null : statusConfig[s as OrderStatus];
-                    const count = s === 'all' ? filtered.length : mockOrders.filter(o => o.status === s && (platformTab === 'all' || o.platform === platformTab)).length;
+                {['all', 'pending', 'new', 'processing', 'packed', 'shipped', 'delivered', 'returned', 'cancelled'].map(s => {
+                    const cfg = s === 'all' ? null : statusConfig[s];
+                    const count = s === 'all' ? filtered.length : orders.filter(o => o.status === s && (platformTab === 'all' || o.platform === platformTab)).length;
                     return (
                         <button key={s} onClick={() => { setStatusTab(s); setCurrentPage(1); }}
                             className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${statusTab === s
@@ -154,6 +200,11 @@ export default function OrdersList() {
 
             {/* Orders Table */}
             <div className="bg-white rounded-2xl border border-border/60 shadow-sm overflow-hidden">
+                {isLoading ? (
+                    <div className="flex items-center justify-center py-20"><Spinner size="lg" /></div>
+                ) : filtered.length === 0 ? (
+                    <div className="text-center py-20 text-text-muted"><p>No orders found.</p></div>
+                ) : (
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead>
@@ -253,6 +304,7 @@ export default function OrdersList() {
                         </tbody>
                     </table>
                 </div>
+                )}
 
                 {/* Pagination */}
                 <div className="flex items-center justify-between px-4 py-3 border-t border-border/40 bg-bg-subtle/30">

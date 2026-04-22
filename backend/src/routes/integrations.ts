@@ -12,49 +12,6 @@ const connectSchema = z.object({
   apiKey: z.string().min(1)
 });
 
-// Helper to generate some random products
-function generateMockProducts(platformId: string, userId: string) {
-  const isAmazon = platformId === 'amazon';
-  const isShopify = platformId === 'shopify';
-  
-  const products = [
-    {
-      title: isAmazon ? 'Wireless Over-Ear Headphones' : isShopify ? 'Minimalist T-Shirt' : 'Premium Office Chair',
-      description: `Synced automatically from ${platformId}`,
-      sku: `${platformId.toUpperCase()}-${Math.floor(Math.random() * 10000)}`,
-      price: isAmazon ? 89.99 : 24.99,
-      stock: Math.floor(Math.random() * 200) + 10,
-      status: 'active',
-      category: isAmazon ? 'Electronics' : isShopify ? 'Apparel' : 'Furniture',
-      platforms: [platformId],
-      user_id: userId
-    },
-    {
-      title: isAmazon ? 'Smart Home Hub v2' : isShopify ? 'Classic Denim Jacket' : 'Standing Desk Converter',
-      description: `Synced automatically from ${platformId}`,
-      sku: `${platformId.toUpperCase()}-${Math.floor(Math.random() * 10000)}`,
-      price: isAmazon ? 129.50 : 65.00,
-      stock: Math.floor(Math.random() * 50) + 5,
-      status: 'active',
-      category: isAmazon ? 'Electronics' : isShopify ? 'Apparel' : 'Furniture',
-      platforms: [platformId],
-      user_id: userId
-    },
-    {
-      title: isAmazon ? '4K Action Camera' : isShopify ? 'Vintage Leather Belt' : 'Ergonomic Keyboard',
-      description: `Synced automatically from ${platformId}`,
-      sku: `${platformId.toUpperCase()}-${Math.floor(Math.random() * 10000)}`,
-      price: isAmazon ? 199.99 : 35.00,
-      stock: Math.floor(Math.random() * 100) + 1,
-      status: 'active',
-      category: isAmazon ? 'Electronics' : isShopify ? 'Accessories' : 'Electronics',
-      platforms: [platformId],
-      user_id: userId
-    }
-  ];
-  return products;
-}
-
 // Connect platform API endpoint
 integrations.post('/connect', authMiddleware, zValidator('json', connectSchema), async (c) => {
   const user = c.get('user');
@@ -63,40 +20,131 @@ integrations.post('/connect', authMiddleware, zValidator('json', connectSchema),
   const supabase = getSupabase(token);
 
   try {
-    // 1. Simulate authentication delay with third party API
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // 1. Fetch data from FakeStore API
+    const [productsRes, usersRes, cartsRes] = await Promise.all([
+      fetch('https://fakestoreapi.com/products'),
+      fetch('https://fakestoreapi.com/users'),
+      fetch('https://fakestoreapi.com/carts?limit=10') // Limit carts to avoid too many mock orders
+    ]);
 
-    // 2. Generate and Insert Mock Products
-    const mockProducts = generateMockProducts(platformId, user.id);
+    if (!productsRes.ok || !usersRes.ok || !cartsRes.ok) {
+      throw new Error('Failed to fetch data from FakeStore API');
+    }
+
+    const fakeProducts = await productsRes.json();
+    const fakeUsers = await usersRes.json();
+    const fakeCarts = await cartsRes.json();
+
+    // 2. Map and Insert Products
+    const productsToInsert = fakeProducts.map((p: any) => ({
+      title: p.title,
+      description: p.description,
+      sku: `${platformId.toUpperCase()}-FS-${p.id}`,
+      price: p.price,
+      stock: Math.floor(Math.random() * 200) + 10,
+      status: 'active',
+      category: p.category,
+      platforms: [platformId],
+      user_id: user.id,
+      image_url: p.image
+    }));
+
     const { data: insertedProducts, error: productError } = await supabase
       .from('products')
-      .insert(mockProducts)
+      .insert(productsToInsert)
       .select();
 
     if (productError) throw productError;
 
-    // 3. Generate Mock Orders attached to the newly connected platform
-    const mockOrders = insertedProducts.map(p => ({
-      user_id: user.id,
-      platform: platformId,
-      customer_name: `Customer ${Math.floor(Math.random() * 1000)}`,
-      customer_email: `customer${Math.floor(Math.random() * 1000)}@example.com`,
-      subtotal: p.price,
-      total: p.price,
-      status: 'pending',
-      payment_type: 'prepaid',
-      payment_status: 'paid'
-    }));
+    // Create a map for quick product lookup by FakeStore ID
+    const productMap = new Map();
+    insertedProducts.forEach((p: any) => {
+      const match = p.sku.match(/-FS-(\d+)$/);
+      if (match) {
+        productMap.set(parseInt(match[1]), p);
+      }
+    });
 
+    // 3. Map and Insert Orders
+    const orderItemsToInsert: any[] = [];
+    
+    // Map users for quick lookup by ID
+    const userMap = new Map();
+    fakeUsers.forEach((u: any) => userMap.set(u.id, u));
+
+    const preparedOrders = fakeCarts.map((cart: any) => {
+      const fakeUser = userMap.get(cart.userId) || fakeUsers[0];
+      
+      // Calculate totals
+      let subtotal = 0;
+      const cartItems = cart.products.map((cartItem: any) => {
+        const dbProduct = productMap.get(cartItem.productId);
+        if (dbProduct) {
+          const itemTotal = dbProduct.price * cartItem.quantity;
+          subtotal += itemTotal;
+          return {
+            product_id: dbProduct.id,
+            title: dbProduct.title,
+            sku: dbProduct.sku,
+            qty: cartItem.quantity,
+            unit_price: dbProduct.price,
+            image_url: dbProduct.image_url
+          };
+        }
+        return null;
+      }).filter(Boolean);
+
+      return {
+        order: {
+          user_id: user.id,
+          platform: platformId,
+          customer_name: `${fakeUser.name.firstname} ${fakeUser.name.lastname}`,
+          customer_email: fakeUser.email,
+          customer_phone: fakeUser.phone,
+          delivery_address: {
+            city: fakeUser.address.city,
+            street: fakeUser.address.street,
+            number: fakeUser.address.number,
+            zipcode: fakeUser.address.zipcode
+          },
+          subtotal: subtotal,
+          total: subtotal, // Assuming no tax/discount for mock data
+          status: 'pending',
+          payment_type: 'prepaid',
+          payment_status: 'paid'
+        },
+        items: cartItems
+      };
+    });
+
+    // Insert Orders
     const { data: insertedOrders, error: orderError } = await supabase
       .from('orders')
-      .insert(mockOrders)
+      .insert(preparedOrders.map((po: any) => po.order))
       .select();
 
     if (orderError) throw orderError;
 
-    // 4. Ideally, save the API key or 'connected' state to user profiles or an integrations table
-    // For now, we update the platforms array on the profile if it exists
+    // Prepare and Insert Order Items
+    insertedOrders.forEach((order, index) => {
+      const items = preparedOrders[index].items;
+      items.forEach((item: any) => {
+        orderItemsToInsert.push({
+          ...item,
+          order_id: order.id
+        });
+      });
+    });
+
+    if (orderItemsToInsert.length > 0) {
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItemsToInsert);
+      
+      if (itemsError) throw itemsError;
+    }
+
+    // 4. Update the platforms array on the profile
     const { data: profileData } = await supabase
       .from('profiles')
       .select('platforms')

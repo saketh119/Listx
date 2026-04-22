@@ -2,7 +2,8 @@ import { Bell, Search, Menu, ShoppingCart, Truck, AlertTriangle } from "lucide-r
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -17,6 +18,18 @@ interface TopbarProps {
 }
 
 export function Topbar({ onMenuClick }: TopbarProps) {
+    const { user, logout } = useAuth();
+    const navigate = useNavigate();
+
+    const handleLogout = async () => {
+        try {
+            await logout();
+            navigate('/login');
+        } catch (error) {
+            console.error('Logout failed', error);
+        }
+    };
+
     return (
         <header className="h-16 border-b bg-background flex items-center justify-between px-4 sm:px-6 sticky top-0 z-30">
 
@@ -110,18 +123,18 @@ export function Topbar({ onMenuClick }: TopbarProps) {
                     <DropdownMenuContent className="w-56" align="end" forceMount>
                         <DropdownMenuLabel className="font-normal">
                             <div className="flex flex-col space-y-1">
-                                <p className="text-body-sm font-medium leading-none">Admin User</p>
+                                <p className="text-body-sm font-medium leading-none">{(user as any)?.name || user?.user_metadata?.name || user?.user_metadata?.full_name || 'Admin User'}</p>
                                 <p className="text-body-xs leading-none text-text-muted">
-                                    admin@listx.ai
+                                    {user?.email || 'admin@listx.ai'}
                                 </p>
                             </div>
                         </DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem>Profile</DropdownMenuItem>
-                        <DropdownMenuItem>Settings</DropdownMenuItem>
+                        <DropdownMenuItem className="cursor-pointer" onClick={() => navigate('/dashboard/settings')}>Profile</DropdownMenuItem>
+                        <DropdownMenuItem className="cursor-pointer" onClick={() => navigate('/dashboard/settings')}>Settings</DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-brand-saffron focus:text-brand-saffron" asChild>
-                            <Link to="/login" className="w-full cursor-pointer text-left focus:text-brand-saffron">Log out</Link>
+                        <DropdownMenuItem className="text-brand-saffron focus:text-brand-saffron cursor-pointer" onClick={handleLogout}>
+                            Log out
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
