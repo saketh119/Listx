@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { apiClient } from "@/lib/api-client";
 import {
     MoreHorizontal, ArrowUpDown, Edit, Trash2, Tag,
     Copy, ExternalLink, Image as ImageIcon
@@ -21,10 +22,30 @@ import {
 
 interface ProductTableProps {
     products: ExtendedProduct[];
+    onRefresh?: () => void;
 }
 
-export function ProductTable({ products }: ProductTableProps) {
+export function ProductTable({ products, onRefresh }: ProductTableProps) {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const navigate = useNavigate();
+
+    const handleDelete = async (id: string, title: string) => {
+        if (!window.confirm(`Are you sure you want to delete "${title}"?`)) return;
+
+        try {
+            await apiClient.delete(`/products/${id}`);
+            onRefresh?.();
+        } catch (error) {
+            console.error("Failed to delete product:", error);
+            alert("Failed to delete product. Please try again.");
+        }
+    };
+
+    const handleDuplicate = (product: any) => {
+        navigate('/dashboard/products/upload/manual', { 
+            state: { duplicateData: product } 
+        });
+    };
 
     const toggleSelectAll = () => {
         if (selectedIds.size === products.length) {
@@ -180,19 +201,28 @@ export function ProductTable({ products }: ProductTableProps) {
                                             <MoreHorizontal className="h-4 w-4" />
                                         </Button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-48 rounded-xl border-border/60 shadow-lg shadow-brand-dark/5">
+                                     <DropdownMenuContent align="end" className="w-48 rounded-xl border-border/60 shadow-lg shadow-brand-dark/5">
                                         <DropdownMenuLabel className="font-semibold text-xs text-text-muted uppercase tracking-wider">Actions</DropdownMenuLabel>
-                                        <DropdownMenuItem className="focus:bg-bg-subtle rounded-lg cursor-pointer">
+                                        <DropdownMenuItem 
+                                            onClick={() => navigate(`/dashboard/products/${product.id}/edit`)}
+                                            className="focus:bg-bg-subtle rounded-lg cursor-pointer"
+                                        >
                                             <Edit className="mr-2 h-4 w-4" /> Edit details
                                         </DropdownMenuItem>
                                         <DropdownMenuItem className="focus:bg-bg-subtle rounded-lg cursor-pointer">
                                             <ExternalLink className="mr-2 h-4 w-4" /> View active listings
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem className="focus:bg-bg-subtle rounded-lg cursor-pointer">
+                                        <DropdownMenuItem 
+                                            onClick={() => handleDuplicate(product)}
+                                            className="focus:bg-bg-subtle rounded-lg cursor-pointer"
+                                        >
                                             <Copy className="mr-2 h-4 w-4" /> Duplicate product
                                         </DropdownMenuItem>
                                         <DropdownMenuSeparator className="bg-border/60" />
-                                        <DropdownMenuItem className="text-semantic-error focus:bg-semantic-error/10 focus:text-semantic-error rounded-lg cursor-pointer">
+                                        <DropdownMenuItem 
+                                            onClick={() => handleDelete(product.id, product.title)}
+                                            className="text-semantic-error focus:bg-semantic-error/10 focus:text-semantic-error rounded-lg cursor-pointer"
+                                        >
                                             <Trash2 className="mr-2 h-4 w-4" /> Delete product
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>

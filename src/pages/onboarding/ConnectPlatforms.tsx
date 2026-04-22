@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { apiClient } from "@/lib/api-client";
 
 export default function ConnectPlatforms() {
     const [platforms, setPlatforms] = useState([
@@ -20,17 +21,25 @@ export default function ConnectPlatforms() {
     const [credentials, setCredentials] = useState({ sellerId: "", authToken: "" });
     const [isSaving, setIsSaving] = useState(false);
 
-    const handleConnect = (id: string, e: React.FormEvent) => {
+    const handleConnect = async (id: string, e: React.FormEvent) => {
         e.preventDefault();
         setIsSaving(true);
-        setTimeout(() => {
-            setIsSaving(false);
+        try {
+            await apiClient.post('/integrations/connect', {
+                platformId: id,
+                apiKey: credentials.authToken
+            });
             setPlatforms(current => current.map(p =>
                 p.id === id ? { ...p, status: "connected" } : p
             ));
             setActiveModal(null);
             setCredentials({ sellerId: "", authToken: "" });
-        }, 1500);
+        } catch (error) {
+            console.error("Connection failed:", error);
+            alert("Failed to connect platform. Please check your credentials.");
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const hasConnected = platforms.some(p => p.status === "connected");

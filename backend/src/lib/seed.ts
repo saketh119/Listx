@@ -3,12 +3,14 @@ import { SupabaseClient } from '@supabase/supabase-js';
 export const seedDatabase = async (userId: string, supabase: SupabaseClient) => {
   console.log(`Seeding database for user: ${userId}`);
 
+  const shortId = userId.substring(0, 8);
+
   // 1. Seed Products
   const mockProducts = [
     {
       user_id: userId,
       title: "Ergonomic Office Chair",
-      sku: "OFF-CHR-001",
+      sku: `OFF-CHR-001-${shortId}`,
       price: 4500,
       stock: 142,
       status: 'active',
@@ -19,7 +21,7 @@ export const seedDatabase = async (userId: string, supabase: SupabaseClient) => 
     {
       user_id: userId,
       title: "Wireless Headphones",
-      sku: "ELEC-HP-BLK",
+      sku: `ELEC-HP-BLK-${shortId}`,
       price: 8999,
       stock: 45,
       status: 'active',
@@ -30,7 +32,7 @@ export const seedDatabase = async (userId: string, supabase: SupabaseClient) => 
     {
       user_id: userId,
       title: "Yoga Mat",
-      sku: "FIT-YM-ORG",
+      sku: `FIT-YM-ORG-${shortId}`,
       price: 1200,
       stock: 0,
       status: 'out_of_stock',

@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { supabase } from '../lib/supabase.js';
+import { supabase, getSupabase } from '../lib/supabase.js';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { authMiddleware } from '../middleware/auth.js';
@@ -106,7 +106,33 @@ auth.post('/login', zValidator('json', loginSchema), async (c) => {
 // Get Current User (Session Check)
 auth.get('/me', authMiddleware, async (c) => {
   const user = c.get('user');
-  return c.json({ user });
+  const token = c.req.header('Authorization')?.replace('Bearer ', '');
+  const supabaseClient = getSupabase(token);
+
+  let { data: profile } = await supabaseClient
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile) {
+    const { data: newProfile, error } = await supabaseClient
+      .from('profiles')
+      .upsert({
+        id: user.id,
+        full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Auto profile creation error:", error);
+    } else {
+      profile = newProfile;
+    }
+  }
+
+  return c.json({ user, profile });
 });
 
 // Logout
@@ -123,7 +149,7 @@ auth.get('/google', async (c) => {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: process.env.FRONTEND_URL || 'http://localhost:3000',
+      redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard`,
     },
   });
 

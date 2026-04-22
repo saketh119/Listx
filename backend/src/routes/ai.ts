@@ -1,6 +1,5 @@
 import { Hono } from 'hono';
 import { stream } from 'hono/streaming';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { authMiddleware } from '../middleware/auth.js';
 import { getSupabase } from '../lib/supabase.js';
 import { Env } from '../types.js';
@@ -33,13 +32,12 @@ ai.post('/generate', authMiddleware, zValidator('json', generateSchema), async (
   }
 
   // 2. Initialize Model Provider
-  const geminiApiKey = process.env.GEMINI_API_KEY;
   const openRouterApiKey = process.env.OPENROUTER_API_KEY;
   const openRouterModel = process.env.OPENROUTER_MODEL || "openrouter/auto";
 
-  if (!geminiApiKey && !openRouterApiKey) {
-    console.error('AI Generation Error: No API keys found for Gemini or OpenRouter in .env');
-    return c.json({ error: 'No AI provider (Gemini or OpenRouter) configured. Check your .env file.' }, 500);
+  if (!openRouterApiKey) {
+    console.error('AI Generation Error: No OpenRouter API key configured in .env');
+    return c.json({ error: 'No AI provider configured. Check your .env file.' }, 500);
   }
 
   const prompt = `
@@ -68,69 +66,54 @@ ai.post('/generate', authMiddleware, zValidator('json', generateSchema), async (
     c.header('Connection', 'keep-alive');
 
     try {
-      if (geminiApiKey) {
-        // --- Option A: Native Gemini SDK ---
-        const genAI = new GoogleGenerativeAI(geminiApiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        const result = await model.generateContentStream(prompt);
-        
-        for await (const chunk of result.stream) {
-          const chunkText = chunk.text();
-          if (chunkText) {
-            await stream.write(chunkText);
-          }
-        }
-      } else {
-        // --- Option B: OpenRouter Fallback ---
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${openRouterApiKey}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://listx.ai", // Required by OpenRouter
-            "X-Title": "ListX AI" 
-          },
-          body: JSON.stringify({
-            "model": openRouterModel,
-            "messages": [{ "role": "user", "content": prompt }],
-            "stream": true
-          })
-        });
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${openRouterApiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://listx.ai", // Required by OpenRouter
+          "X-Title": "ListX AI" 
+        },
+        body: JSON.stringify({
+          "model": openRouterModel,
+          "messages": [{ "role": "user", "content": prompt }],
+          "stream": true
+        })
+      });
 
-        if (!response.ok) {
-          const errBody = await response.text();
-          throw new Error(`OpenRouter API error: ${response.status} ${errBody}`);
-        }
+      if (!response.ok) {
+        const errBody = await response.text();
+        throw new Error(`OpenRouter API error: ${response.status} ${errBody}`);
+      }
 
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
 
-        if (!reader) throw new Error("No reader available from OpenRouter");
+      if (!reader) throw new Error("No reader available from OpenRouter");
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-          const chunk = decoder.decode(value);
-          const lines = chunk.split("\n");
+        const chunk = decoder.decode(value);
+        const lines = chunk.split("\n");
 
-          for (const line of lines) {
-            const cleanLine = line.trim();
-            if (!cleanLine || !cleanLine.startsWith("data: ")) continue;
-            
-            const data = cleanLine.replace("data: ", "");
-            if (data === "[DONE]") break;
+        for (const line of lines) {
+          const cleanLine = line.trim();
+          if (!cleanLine || !cleanLine.startsWith("data: ")) continue;
+          
+          const data = cleanLine.replace("data: ", "");
+          if (data === "[DONE]") break;
 
-            try {
-              const parsed = JSON.parse(data);
-              const content = parsed.choices?.[0]?.delta?.content;
-              if (content) {
-                await stream.write(content);
-              }
-            } catch (pErr) {
-              // Ignore incomplete chunks or parse errors
-              continue;
+          try {
+            const parsed = JSON.parse(data);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) {
+              await stream.write(content);
             }
+          } catch (pErr) {
+            // Ignore incomplete chunks or parse errors
+            continue;
           }
         }
       }
@@ -142,8 +125,11 @@ ai.post('/generate', authMiddleware, zValidator('json', generateSchema), async (
 });
 
 ai.post('/extract-from-image', authMiddleware, async (c) => {
-  const geminiApiKey = process.env.GEMINI_API_KEY;
-  if (!geminiApiKey) return c.json({ error: 'Gemini API key not configured' }, 500);
+  const openRouterApiKey = process.env.OPENROUTER_API_KEY;
+  if (!openRouterApiKey) return c.json({ error: 'OpenRouter API key not configured' }, 500);
+  
+  // Use a vision-capable model. google/gemini-1.5-flash is supported via OpenRouter.
+  const openRouterModel = process.env.OPENROUTER_VISION_MODEL || "google/gemini-1.5-flash";
 
   try {
     const body = await c.req.parseBody();
@@ -155,9 +141,6 @@ ai.post('/extract-from-image', authMiddleware, async (c) => {
 
     const arrayBuffer = await file.arrayBuffer();
     const base64Image = Buffer.from(arrayBuffer).toString('base64');
-
-    const genAI = new GoogleGenerativeAI(geminiApiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const prompt = `
       Identify all products listed in this image. The image might be a photo of a handwritten or printed list on paper with product names and prices.
@@ -178,18 +161,43 @@ ai.post('/extract-from-image', authMiddleware, async (c) => {
       DO NOT include any conversational text or markdown formatting except the JSON.
     `;
 
-    const result = await model.generateContent([
-      prompt,
-      {
-        inlineData: {
-          data: base64Image,
-          mimeType: file.type
-        }
-      }
-    ]);
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openRouterApiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://listx.ai",
+        "X-Title": "ListX AI" 
+      },
+      body: JSON.stringify({
+        "model": openRouterModel,
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": prompt
+              },
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": `data:${file.type};base64,${base64Image}`
+                }
+              }
+            ]
+          }
+        ]
+      })
+    });
 
-    const response = await result.response;
-    const text = response.text();
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`OpenRouter API Error: ${response.status} ${errText}`);
+    }
+
+    const resultData = await response.json();
+    const text = resultData.choices?.[0]?.message?.content || "[]";
     
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (!jsonMatch) throw new Error("AI failed to return valid product data. Please ensure the image is clear.");
@@ -208,12 +216,11 @@ ai.post('/generate-from-text', authMiddleware, zValidator('json', z.object({
   tone: z.string().optional()
 })), async (c) => {
   const { description, tone } = c.req.valid('json');
-  const geminiApiKey = process.env.GEMINI_API_KEY;
-  if (!geminiApiKey) return c.json({ error: 'Gemini API key not configured' }, 500);
+  const openRouterApiKey = process.env.OPENROUTER_API_KEY;
+  if (!openRouterApiKey) return c.json({ error: 'OpenRouter API key not configured' }, 500);
+  const openRouterModel = process.env.OPENROUTER_MODEL || "openrouter/auto";
 
   try {
-    const genAI = new GoogleGenerativeAI(geminiApiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const prompt = `
       Generate a complete e-commerce product listing based on this brief description: "${description}".
@@ -237,9 +244,27 @@ ai.post('/generate-from-text', authMiddleware, zValidator('json', z.object({
       }
     `;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openRouterApiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://listx.ai",
+        "X-Title": "ListX AI" 
+      },
+      body: JSON.stringify({
+        "model": openRouterModel,
+        "messages": [{ "role": "user", "content": prompt }]
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`OpenRouter API Error: ${response.status} ${errText}`);
+    }
+
+    const resultData = await response.json();
+    const text = resultData.choices?.[0]?.message?.content || "{}";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error("AI failed to generate valid product data.");
     

@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, UploadCloud, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { apiClient } from "@/lib/api-client";
 
 import { Button } from "@/components/ui/button";
 
@@ -8,13 +9,14 @@ export default function UploadCSV() {
     const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'validating' | 'success' | 'error'>('idle');
     const [progress, setProgress] = useState(0);
     const [fileName, setFileName] = useState('');
+    const [stats, setStats] = useState({ count: 0 });
     const fileInputRef = useRef<HTMLInputElement>(null);
     const navigate = useNavigate();
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            startUpload(file.name);
+            startUpload(file);
         }
     };
 
@@ -35,7 +37,7 @@ export default function UploadCSV() {
         if (file) {
             // Check if it's a CSV/Excel
             if (file.name.endsWith('.csv') || file.name.endsWith('.xlsx')) {
-                startUpload(file.name);
+                startUpload(file);
             } else {
                 setUploadState('error');
                 setFileName(file.name);
@@ -43,26 +45,39 @@ export default function UploadCSV() {
         }
     };
 
-    const startUpload = (name: string) => {
-        setFileName(name);
+    const startUpload = async (file: File) => {
+        setFileName(file.name);
         setUploadState('uploading');
         setProgress(0);
 
-        // Simulate upload progress
+        // Simulate visual progress for UX
         const interval = setInterval(() => {
-            setProgress(p => {
-                if (p >= 100) {
-                    clearInterval(interval);
-                    setUploadState('validating');
-                    // Simulate validation
-                    setTimeout(() => {
-                        setUploadState('success');
-                    }, 1500);
-                    return 100;
+            setProgress(p => (p >= 90 ? 90 : p + (Math.random() * 20)));
+        }, 200);
+
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const { data } = await apiClient.post('/products/bulk', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+                onUploadProgress: (progressEvent) => {
+                    const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
+                    // If file is large, we can use this. For small files, the simulation is enough.
                 }
-                return p + (Math.random() * 15);
             });
-        }, 300);
+
+            clearInterval(interval);
+            setProgress(100);
+            setUploadState('success');
+            setStats({ count: data.count || 0 });
+        } catch (error) {
+            clearInterval(interval);
+            console.error("Bulk upload failed:", error);
+            setUploadState('error');
+        }
     };
 
     const resetUpload = () => {
@@ -172,7 +187,7 @@ export default function UploadCSV() {
                         </div>
                         <h3 className="text-body-lg font-bold text-brand-dark mb-2">Upload Successful!</h3>
                         <p className="text-body-sm text-text-muted mb-6">
-                            Successfully imported <strong>42 products</strong> from <span className="font-mono bg-bg-subtle px-1 rounded">{fileName}</span>.
+                            Successfully imported <strong>{stats.count} products</strong> from <span className="font-mono bg-bg-subtle px-1 rounded">{fileName}</span>.
                         </p>
 
                         <div className="flex gap-4">

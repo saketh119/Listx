@@ -119,6 +119,7 @@ export const router = createBrowserRouter([
                     { path: "products/publish-select", element: <PublishProducts /> },
                     { path: "products/publish-success", element: <PublishSuccess /> },
                     { path: "products/:id", element: <ProductDetail /> },
+                    { path: "products/:id/edit", element: <ManualEntry /> },
                     { path: "inventory", element: <InventoryList /> },
                     // Orders
                     { path: "orders", element: <OrdersList /> },

@@ -1,7 +1,7 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useParams, useLocation } from "react-router-dom";
 import { apiClient } from "@/lib/api-client";
-import { ArrowLeft, Keyboard, Plus, X, ImageIcon, Save } from "lucide-react";
+import { ArrowLeft, Keyboard, Plus, X, ImageIcon, Save, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,12 @@ import {
 } from "@/components/ui/select";
 
 export default function ManualEntry() {
+    const { id } = useParams();
+    const location = useLocation();
     const navigate = useNavigate();
+    const isEditing = !!id;
+    const isDuplicating = !!location.state?.duplicateData;
+
     const [formData, setFormData] = useState({
         title: '',
         description: '',
@@ -32,6 +37,54 @@ export default function ManualEntry() {
     const [tagInput, setTagInput] = useState('');
     const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
     const [isSaving, setIsSaving] = useState(false);
+    const [isLoading, setIsLoading] = useState(isEditing);
+
+    useEffect(() => {
+        if (isEditing) {
+            fetchProduct();
+        } else if (isDuplicating) {
+            const data = location.state.duplicateData;
+            setFormData({
+                title: `${data.title} (Copy)`,
+                description: data.description || '',
+                sku: '', // Reset SKU for duplicate to avoid conflicts
+                price: data.price?.toString() || '',
+                compareAtPrice: data.compare_at_price?.toString() || '',
+                category: data.category || '',
+                stock: data.stock?.toString() || '',
+                weight: data.weight || '',
+                status: 'draft',
+            });
+            setTags(data.tags || []);
+            setSelectedPlatforms(data.platforms || []);
+        }
+    }, [id, isEditing, isDuplicating]);
+
+    const fetchProduct = async () => {
+        try {
+            const response = await apiClient.get(`/products/${id}`);
+            const product = response.data.product;
+            setFormData({
+                title: product.title,
+                description: product.description || '',
+                sku: product.sku,
+                price: product.price?.toString() || '',
+                compareAtPrice: product.compare_at_price?.toString() || '',
+                category: product.category || '',
+                stock: product.stock?.toString() || '',
+                weight: product.weight || '',
+                status: product.status,
+            });
+            setTags(product.tags || []);
+            setSelectedPlatforms(product.platforms || []);
+        } catch (error) {
+            console.error("Failed to fetch product:", error);
+            alert("Failed to load product details.");
+            navigate('/dashboard/products');
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     const handleChange = (field: string, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -62,19 +115,44 @@ export default function ManualEntry() {
 
         setIsSaving(true);
         try {
-            const { compareAtPrice, ...rest } = formData;
-            await apiClient.post('/products', {
+            const { compareAtPrice, price, stock, ...rest } = formData;
+            
+            // Clean numeric values to ensure we don't send NaN
+            const payload = {
                 ...rest,
-                compare_at_price: compareAtPrice ? parseFloat(compareAtPrice) : null,
-                price: parseFloat(formData.price),
-                stock: parseInt(formData.stock),
+                compare_at_price: (compareAtPrice && !isNaN(parseFloat(compareAtPrice))) ? parseFloat(compareAtPrice) : undefined,
+                price: (price && !isNaN(parseFloat(price))) ? parseFloat(price) : 0,
+                stock: (stock && !isNaN(parseInt(stock))) ? parseInt(stock) : 0,
                 platforms: selectedPlatforms,
-                tags: tags
-            });
+                tags: tags,
+                status: formData.status
+            };
+
+            if (isEditing) {
+                await apiClient.patch(`/products/${id}`, payload);
+            } else {
+                await apiClient.post('/products', payload);
+            }
             navigate('/dashboard/products');
         } catch (error: any) {
             console.error("Failed to save product:", error);
-            alert(error.response?.data?.error || "Failed to save product. Please try again.");
+            
+            let errorMessage = "Failed to save product. Please try again.";
+            
+            if (error.response?.data) {
+                if (typeof error.response.data.error === 'string') {
+                    errorMessage = error.response.data.error;
+                } else if (Array.isArray(error.response.data.error)) {
+                    // Handle Zod validation errors if they come back as an array
+                    errorMessage = error.response.data.error.map((e: any) => `${e.path.join('.')}: ${e.message}`).join('\n');
+                } else if (typeof error.response.data === 'object') {
+                    errorMessage = JSON.stringify(error.response.data.error || error.response.data, null, 2);
+                }
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+            
+            alert(errorMessage);
         } finally {
             setIsSaving(false);
         }
@@ -100,14 +178,22 @@ export default function ManualEntry() {
                     <div className="w-10 h-10 rounded-lg bg-bg-subtle border border-border/40 flex items-center justify-center text-brand-dark">
                         <Keyboard className="w-5 h-5" />
                     </div>
-                    <h1 className="text-display-sm font-bold text-brand-dark">Create Product Manually</h1>
+                    <h1 className="text-display-sm font-bold text-brand-dark">
+                        {isEditing ? 'Edit Product' : isDuplicating ? 'Duplicate Product' : 'Create Product Manually'}
+                    </h1>
                 </div>
                 <p className="text-body-sm text-text-muted mt-2">
-                    Fill in the details below to add a new product to your catalog.
+                    {isEditing ? 'Update your product details below.' : 'Fill in the details below to add a new product to your catalog.'}
                 </p>
             </div>
 
-            <div className="space-y-8">
+            {isLoading ? (
+                <div className="flex items-center justify-center py-20">
+                    <Loader2 className="w-8 h-8 animate-spin text-brand-lake" />
+                </div>
+            ) : (
+                <>
+                <div className="space-y-8">
                 {/* Basic Info */}
                 <section className="bg-white rounded-2xl border border-border/60 shadow-sm p-6 sm:p-8">
                     <h2 className="text-body-lg font-bold text-brand-dark mb-6">Basic Information</h2>
@@ -260,6 +346,8 @@ export default function ManualEntry() {
                     </div>
                 </div>
             </div>
+            </>
+            )}
         </div>
     );
 }

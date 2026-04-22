@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Sparkles, CheckCircle2, Wand2, Copy, Edit, ArrowRight } from "lucide-react";
+import { ArrowLeft, Sparkles, CheckCircle2, Wand2, Copy, Edit, ArrowRight, UploadCloud, ImageIcon, Loader2 } from "lucide-react";
+import { apiClient } from "@/lib/api-client";
 
 import { Button } from "@/components/ui/button";
 
@@ -20,25 +21,15 @@ const aiResult = {
 };
 
 export default function AIProcessing() {
-    const [phase, setPhase] = useState<'processing' | 'preview'>('processing');
+    const [phase, setPhase] = useState<'idle' | 'processing' | 'preview'>('idle');
     const [currentStep, setCurrentStep] = useState(0);
     const [orbPulse, setOrbPulse] = useState(0);
+    const [isUploading, setIsUploading] = useState(false);
+    const [fileName, setFileName] = useState('');
     const navigate = useNavigate();
 
     useEffect(() => {
         if (phase !== 'processing') return;
-
-        let stepIndex = 0;
-        const runSteps = () => {
-            if (stepIndex >= aiSteps.length) {
-                setTimeout(() => setPhase('preview'), 400);
-                return;
-            }
-            setCurrentStep(stepIndex);
-            stepIndex++;
-            setTimeout(runSteps, aiSteps[stepIndex - 1].duration);
-        };
-        runSteps();
 
         // Orb animation
         const orbInterval = setInterval(() => {
@@ -47,6 +38,43 @@ export default function AIProcessing() {
 
         return () => clearInterval(orbInterval);
     }, [phase]);
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setFileName(file.name);
+        setPhase('processing');
+        setCurrentStep(0);
+
+        // Simulated steps interval
+        const stepInterval = setInterval(() => {
+            setCurrentStep(s => (s < aiSteps.length - 1 ? s + 1 : s));
+        }, 1200);
+
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const { data } = await apiClient.post('/ai/extract-from-image', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            clearInterval(stepInterval);
+            setCurrentStep(aiSteps.length);
+            
+            // Navigate to preview with real data
+            setTimeout(() => {
+                navigate('/dashboard/products/ai-preview', { state: { products: data.products } });
+            }, 800);
+            
+        } catch (error) {
+            clearInterval(stepInterval);
+            console.error("AI Extraction failed:", error);
+            alert("Failed to process image. Please ensure it's clear and contains product information.");
+            setPhase('idle');
+        }
+    };
 
     if (phase === 'processing') {
         return (
@@ -99,88 +127,62 @@ export default function AIProcessing() {
             </div>
         );
     }
-
-    return (
-        <div className="max-w-4xl mx-auto py-8 pb-16">
-            <div className="mb-8">
-                <Button variant="ghost" asChild className="mb-4 -ml-4 text-text-muted hover:text-brand-dark">
-                    <Link to="/dashboard/products/upload">
-                        <ArrowLeft className="w-4 h-4 mr-2" />
-                        Back to Methods
-                    </Link>
-                </Button>
-                <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-brand-saffron/20 to-brand-saffron/5 border border-brand-saffron/20 flex items-center justify-center text-brand-saffron">
-                        <Wand2 className="w-5 h-5" />
+    if (phase === 'idle') {
+        return (
+            <div className="max-w-3xl mx-auto py-8">
+                <div className="mb-8">
+                    <Button variant="ghost" asChild className="mb-4 -ml-4 text-text-muted hover:text-brand-dark">
+                        <Link to="/dashboard/products/upload">
+                            <ArrowLeft className="w-4 h-4 mr-2" />
+                            Back to Methods
+                        </Link>
+                    </Button>
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-brand-saffron/10 flex items-center justify-center text-brand-saffron">
+                            <Sparkles className="w-5 h-5" />
+                        </div>
+                        <h1 className="text-display-sm font-bold text-brand-dark">AI Image Extraction</h1>
                     </div>
-                    <h1 className="text-display-sm font-bold text-brand-dark">AI Generated Preview</h1>
+                    <p className="text-body-sm text-text-muted mt-2">
+                        Upload a photo of a product list, menu, or catalog page. AI will extract names and prices automatically.
+                    </p>
                 </div>
-                <p className="text-body-sm text-text-muted">
-                    Review and edit the AI-generated content below before saving to your catalog.
-                </p>
+
+                <div className="bg-white rounded-[2rem] border border-brand-saffron/20 shadow-sm p-8 sm:p-12">
+                    <div
+                        className="border-2 border-dashed border-brand-saffron/30 rounded-2xl p-12 flex flex-col items-center justify-center text-center transition-all hover:border-brand-saffron/60 hover:bg-brand-saffron/5 cursor-pointer group"
+                        onClick={() => document.getElementById('ai-file-input')?.click()}
+                    >
+                        <input
+                            id="ai-file-input"
+                            type="file"
+                            className="hidden"
+                            accept="image/*"
+                            onChange={handleFileUpload}
+                        />
+                        <div className="w-16 h-16 rounded-full bg-brand-saffron/10 flex items-center justify-center text-brand-saffron mb-6 group-hover:scale-110 transition-transform">
+                            <UploadCloud className="w-8 h-8" />
+                        </div>
+                        <h3 className="text-body-lg font-bold text-brand-dark mb-2">Upload a photo of your list</h3>
+                        <p className="text-body-sm text-text-muted max-w-sm">
+                            Snap a picture of your handwritten list, printed catalog, or stock sheet.
+                        </p>
+
+                        <div className="flex items-center gap-4 mt-8 text-xs font-semibold text-text-muted/60 uppercase tracking-wider">
+                            <span className="flex items-center gap-1.5"><ImageIcon className="w-3.5 h-3.5" /> High Quality</span>
+                            <span className="w-1 h-1 rounded-full bg-border" />
+                            <span>PNG, JPG, WEBP</span>
+                        </div>
+                    </div>
+                    
+                    <div className="mt-8 p-4 bg-brand-jade/5 rounded-xl border border-brand-jade/10 flex gap-3 italic text-xs text-brand-jade/80">
+                        <Sparkles className="w-4 h-4 shrink-0" />
+                        Tip: "A clear photo with good lighting works best. Even handwritten lists on paper work like magic!"
+                    </div>
+                </div>
             </div>
+        );
+    }
 
-            {/* Score Badge */}
-            <div className="bg-white rounded-2xl border border-brand-jade/30 shadow-sm p-6 mb-6 flex items-center gap-6">
-                <div className="w-16 h-16 rounded-2xl bg-brand-jade/10 flex items-center justify-center shrink-0">
-                    <span className="text-2xl font-black text-brand-jade">{aiResult.score}</span>
-                </div>
-                <div>
-                    <h3 className="text-sm font-bold text-brand-dark mb-0.5">Listing Quality Score</h3>
-                    <p className="text-xs text-text-muted">Your AI-generated listing scores in the <strong className="text-brand-jade">Excellent</strong> range. It's optimized for discoverability on Amazon, Flipkart, and Shopify.</p>
-                </div>
-            </div>
-
-            {/* Generated Title */}
-            <section className="bg-white rounded-2xl border border-border/60 shadow-sm p-6 sm:p-8 mb-6">
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-sm font-bold text-text-muted uppercase tracking-wider">Generated Title</h2>
-                    <Button variant="ghost" size="sm" className="text-text-muted hover:text-brand-dark rounded-lg h-8 text-xs">
-                        <Edit className="w-3 h-3 mr-1" /> Edit
-                    </Button>
-                </div>
-                <h3 className="text-body-lg font-bold text-brand-dark leading-relaxed">{aiResult.title}</h3>
-            </section>
-
-            {/* Generated Description */}
-            <section className="bg-white rounded-2xl border border-border/60 shadow-sm p-6 sm:p-8 mb-6">
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-sm font-bold text-text-muted uppercase tracking-wider">Generated Description</h2>
-                    <Button variant="ghost" size="sm" className="text-text-muted hover:text-brand-dark rounded-lg h-8 text-xs">
-                        <Edit className="w-3 h-3 mr-1" /> Edit
-                    </Button>
-                </div>
-                <p className="text-body-sm text-brand-dark/80 leading-relaxed">{aiResult.description}</p>
-            </section>
-
-            {/* Keywords */}
-            <section className="bg-white rounded-2xl border border-border/60 shadow-sm p-6 sm:p-8 mb-8">
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-sm font-bold text-text-muted uppercase tracking-wider">SEO Keywords</h2>
-                    <Button variant="ghost" size="sm" className="text-text-muted hover:text-brand-dark rounded-lg h-8 text-xs">
-                        <Copy className="w-3 h-3 mr-1" /> Copy All
-                    </Button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                    {aiResult.keywords.map((kw, i) => (
-                        <span key={i} className="px-3 py-1.5 rounded-lg bg-brand-lake/10 text-brand-lake text-xs font-semibold border border-brand-lake/20">
-                            {kw}
-                        </span>
-                    ))}
-                </div>
-            </section>
-
-            {/* Actions */}
-            <div className="flex items-center justify-between">
-                <Button variant="outline" onClick={() => { setPhase('processing'); setCurrentStep(0); }} className="rounded-xl h-11 border-border/60">
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Re-generate
-                </Button>
-                <Button onClick={() => navigate('/dashboard/products')} className="rounded-xl h-11 px-8 bg-brand-jade hover:bg-brand-jade/90 shadow-sm">
-                    Save to Catalog
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-            </div>
-        </div>
-    );
+    return null; // Navigation happens in handleFileUpload
 }

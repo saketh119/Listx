@@ -123,5 +123,49 @@ integrations.post('/connect', authMiddleware, zValidator('json', connectSchema),
     return c.json({ error: err.message || 'Failed to connect integration' }, 400);
   }
 });
+// Get integrations status
+integrations.get('/', authMiddleware, async (c) => {
+  const user = c.get('user');
+  const token = c.req.header('Authorization')?.replace('Bearer ', '');
+  const supabase = getSupabase(token);
 
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('platforms')
+      .eq('id', user.id)
+      .single();
+
+    const connectedPlatforms = profile?.platforms || [];
+
+    const stats = await Promise.all(connectedPlatforms.map(async (p: string) => {
+      // Get exact count of products for this platform
+      const { count: productCount } = await supabase
+        .from('products')
+        .select('*', { count: 'exact', head: true })
+        .contains('platforms', [p]);
+
+      // Get count of orders for this platform created today
+      const todayStr = new Date().toISOString().split('T')[0];
+      const { count: orderCount } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('platform', p)
+        .gte('created_at', todayStr);
+
+      return {
+        id: p,
+        status: 'connected',
+        productsLinked: productCount || 0,
+        ordersToday: orderCount || 0,
+        lastSync: new Date().toISOString()
+      };
+    }));
+
+    return c.json({ platforms: stats });
+  } catch (err: any) {
+    console.error('Fetch Integrations Error:', err);
+    return c.json({ error: 'Failed to fetch integrations status' }, 500);
+  }
+});
 export default integrations;

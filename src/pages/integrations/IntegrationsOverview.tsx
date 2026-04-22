@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { apiClient } from "@/lib/api-client";
 import {
     Plug, CheckCircle2, XCircle, AlertTriangle, RefreshCw,
     Clock, Package, Truck, Zap
@@ -7,7 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-    platformIntegrations, logisticsPartnerIntegrations
+    platformIntegrations, logisticsPartnerIntegrations, PlatformIntegration
 } from "@/data/mockIntegrations";
 import { PlatformHealthModal } from "./components/PlatformHealthModal";
 import { DisconnectModal } from "./components/DisconnectModal";
@@ -22,6 +23,27 @@ const statusCfg: Record<string, { icon: React.ComponentType<{ className?: string
 export default function IntegrationsOverview() {
     const [healthPlatform, setHealthPlatform] = useState<string | null>(null);
     const [disconnectTarget, setDisconnectTarget] = useState<{ id: string; name: string; type: 'platform' | 'logistics' } | null>(null);
+    const [platforms, setPlatforms] = useState<PlatformIntegration[]>(() => platformIntegrations.map(p => ({ ...p, status: 'disconnected' })));
+
+    useEffect(() => {
+        const fetchIntegrations = async () => {
+            try {
+                const res = await apiClient.get('/integrations');
+                const backendStats = res.data.platforms || [];
+                
+                setPlatforms(prev => prev.map(p => {
+                    const stats = backendStats.find((s: any) => s.id === p.id);
+                    if (stats) {
+                        return { ...p, ...stats };
+                    }
+                    return { ...p, status: 'disconnected' };
+                }));
+            } catch (err) {
+                console.error("Failed to fetch integrations", err);
+            }
+        };
+        fetchIntegrations();
+    }, []);
 
     return (
         <div className="max-w-6xl mx-auto pb-12">
@@ -41,11 +63,11 @@ export default function IntegrationsOverview() {
                         <Package className="w-4 h-4 text-brand-lake" /> Sales Channels
                     </h2>
                     <Badge variant="outline" className="text-[10px] border-border/40">
-                        {platformIntegrations.filter(p => p.status === 'connected').length}/{platformIntegrations.length} connected
+                        {platforms.filter(p => p.status === 'connected').length}/{platforms.length} connected
                     </Badge>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {platformIntegrations.map(p => {
+                    {platforms.map(p => {
                         const sc = statusCfg[p.status];
                         const StatusIcon = sc.icon;
                         return (

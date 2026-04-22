@@ -1,15 +1,19 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Zap, Shield, Check, ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { platformIntegrations } from "@/data/mockIntegrations";
-
+import { apiClient } from "@/lib/api-client";
 type Step = 'intro' | 'authorize' | 'permissions' | 'syncing' | 'success';
 
 export default function PlatformConnectFlow() {
     const { platformId } = useParams<{ platformId: string }>();
     const platform = platformIntegrations.find(p => p.id === platformId);
     const [step, setStep] = useState<Step>('intro');
+    const [apiKey, setApiKey] = useState('');
+    const [syncStats, setSyncStats] = useState<{ products: number, orders: number } | null>(null);
 
     if (!platform) {
         return (
@@ -22,14 +26,25 @@ export default function PlatformConnectFlow() {
 
     const scopes = platform.oauthScopes || ['listings', 'orders', 'fulfillment'];
 
-    const simulateAuth = () => {
-        setStep('authorize');
-        setTimeout(() => setStep('permissions'), 2000);
-    };
-
-    const simulateSync = () => {
+    const handleConnect = async () => {
         setStep('syncing');
-        setTimeout(() => setStep('success'), 3000);
+        try {
+            const response = await apiClient.post('/integrations/connect', {
+                platformId: platform.id,
+                apiKey
+            });
+            
+            setSyncStats({
+                products: response.data.syncedProducts,
+                orders: response.data.syncedOrders
+            });
+            
+            setStep('success');
+        } catch (error) {
+            console.error("Connection failed", error);
+            alert("Failed to connect platform. Please check your credentials.");
+            setStep('intro');
+        }
     };
 
     return (
@@ -65,7 +80,23 @@ export default function PlatformConnectFlow() {
                                 <div key={f} className="flex items-center gap-2 text-xs text-text-muted"><Check className="w-3.5 h-3.5 text-brand-jade shrink-0" />{f}</div>
                             ))}
                         </div>
-                        <Button onClick={simulateAuth} className="rounded-xl shadow-brand-lake/20 font-medium px-8">
+                        <div className="text-left max-w-xs mx-auto mb-6">
+                            <Label htmlFor="apiKey" className="text-sm font-semibold mb-2 block text-brand-dark">API Key *</Label>
+                            <Input 
+                                id="apiKey" 
+                                placeholder="Enter your platform API key" 
+                                className="rounded-xl bg-bg-subtle border-transparent focus:bg-white h-11" 
+                                value={apiKey} 
+                                onChange={e => setApiKey(e.target.value)} 
+                            />
+                        </div>
+                        <Button 
+                            onClick={() => {
+                                if (!apiKey.trim()) return alert("Please enter an API Key to continue.");
+                                setStep('permissions');
+                            }} 
+                            className="rounded-xl shadow-brand-lake/20 font-medium px-8 w-full max-w-xs"
+                        >
                             <Zap className="w-4 h-4 mr-2" /> Connect with {platform.name}
                         </Button>
                     </div>
@@ -98,7 +129,7 @@ export default function PlatformConnectFlow() {
                                 </div>
                             ))}
                         </div>
-                        <Button onClick={simulateSync} className="w-full rounded-xl shadow-brand-lake/20 font-medium">
+                        <Button onClick={handleConnect} className="w-full rounded-xl shadow-brand-lake/20 font-medium">
                             <Shield className="w-4 h-4 mr-2" /> Grant Permissions & Sync
                         </Button>
                     </div>
@@ -127,9 +158,9 @@ export default function PlatformConnectFlow() {
                         <h2 className="text-xl font-bold text-brand-dark mb-2">{platform.name} Connected!</h2>
                         <p className="text-sm text-text-muted mb-6">Your account is now linked and syncing automatically</p>
                         <div className="grid grid-cols-3 gap-3 mb-6">
-                            <div className="p-3 rounded-xl bg-bg-subtle/50 text-center"><p className="text-lg font-bold text-brand-dark">{platform.productsLinked || 142}</p><p className="text-[9px] text-text-muted">Products</p></div>
-                            <div className="p-3 rounded-xl bg-bg-subtle/50 text-center"><p className="text-lg font-bold text-brand-dark">{scopes.length}</p><p className="text-[9px] text-text-muted">Permissions</p></div>
-                            <div className="p-3 rounded-xl bg-bg-subtle/50 text-center"><p className="text-lg font-bold text-brand-dark">4</p><p className="text-[9px] text-text-muted">Webhooks</p></div>
+                            <div className="p-3 rounded-xl bg-bg-subtle/50 text-center"><p className="text-lg font-bold text-brand-dark">{syncStats?.products || 0}</p><p className="text-[9px] text-text-muted">Products</p></div>
+                            <div className="p-3 rounded-xl bg-bg-subtle/50 text-center"><p className="text-lg font-bold text-brand-dark">{syncStats?.orders || 0}</p><p className="text-[9px] text-text-muted">Orders</p></div>
+                            <div className="p-3 rounded-xl bg-bg-subtle/50 text-center"><p className="text-lg font-bold text-brand-dark">Active</p><p className="text-[9px] text-text-muted">Status</p></div>
                         </div>
                         <Button asChild className="rounded-xl shadow-brand-lake/20 font-medium px-8">
                             <Link to="/dashboard/integrations">Go to Integrations</Link>

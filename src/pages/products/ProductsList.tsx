@@ -129,7 +129,20 @@ export default function ProductsList() {
                 <>
                     {viewMode === 'list' ? (
                         <div className="bg-white rounded-2xl border border-border/60 shadow-sm overflow-hidden">
-                            <ProductTable products={filteredProducts} />
+                            <ProductTable products={filteredProducts} onRefresh={() => {
+                                setIsLoading(true);
+                                const fetchProducts = async () => {
+                                    try {
+                                        const response = await apiClient.get('/products');
+                                        setProducts(response.data.products);
+                                    } catch (error) {
+                                        console.error("Failed to fetch products:", error);
+                                    } finally {
+                                        setIsLoading(false);
+                                    }
+                                };
+                                fetchProducts();
+                            }} />
                         </div>
                     ) : (
                         <ProductGrid products={filteredProducts} />
