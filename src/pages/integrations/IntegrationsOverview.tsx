@@ -8,7 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-    platformIntegrations, logisticsPartnerIntegrations, PlatformIntegration
+    platformIntegrations, logisticsPartnerIntegrations, type PlatformIntegration
 } from "@/data/mockIntegrations";
 import { PlatformHealthModal } from "./components/PlatformHealthModal";
 import { DisconnectModal } from "./components/DisconnectModal";

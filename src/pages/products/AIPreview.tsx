@@ -4,9 +4,7 @@ import {
     ArrowLeft, CheckCircle2, Sparkles, RefreshCw, Edit,
     Check, Tag, Info, DollarSign
 } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiClient } from "@/lib/api-client";
 

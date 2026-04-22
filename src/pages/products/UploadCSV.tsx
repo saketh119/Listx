@@ -62,10 +62,6 @@ export default function UploadCSV() {
             const { data } = await apiClient.post('/products/bulk', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
-                },
-                onUploadProgress: (progressEvent) => {
-                    const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
-                    // If file is large, we can use this. For small files, the simulation is enough.
                 }
             });
 

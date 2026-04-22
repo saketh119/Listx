@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Sparkles, CheckCircle2, Wand2, Copy, Edit, ArrowRight, UploadCloud, ImageIcon, Loader2 } from "lucide-react";
+import { ArrowLeft, Sparkles, CheckCircle2, UploadCloud, ImageIcon } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 
 import { Button } from "@/components/ui/button";
@@ -13,19 +13,12 @@ const aiSteps = [
     { label: "Scoring listing quality...", duration: 600 },
 ];
 
-const aiResult = {
-    title: "Premium Ergonomic Office Chair – Breathable Mesh Back, Adjustable Lumbar Support & Armrests, 360° Swivel",
-    description: "Transform your workspace with this premium ergonomic office chair designed for all-day comfort. The breathable mesh backrest promotes airflow to keep you cool during long work sessions, while the adjustable lumbar support conforms to your spine's natural curve. Features include height-adjustable armrests, a 360° smooth-swivel base, and a heavy-duty gas lift cylinder rated for up to 120kg. The waterfall seat edge design reduces pressure on your thighs, improving circulation. Perfect for home offices, corporate environments, and gaming setups.",
-    keywords: ["ergonomic chair", "office chair", "mesh back chair", "adjustable armrests", "lumbar support", "home office furniture", "swivel chair", "breathable chair", "desk chair", "work from home"],
-    score: 94,
-};
+
 
 export default function AIProcessing() {
     const [phase, setPhase] = useState<'idle' | 'processing' | 'preview'>('idle');
     const [currentStep, setCurrentStep] = useState(0);
     const [orbPulse, setOrbPulse] = useState(0);
-    const [isUploading, setIsUploading] = useState(false);
-    const [fileName, setFileName] = useState('');
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -43,7 +36,6 @@ export default function AIProcessing() {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        setFileName(file.name);
         setPhase('processing');
         setCurrentStep(0);
 
